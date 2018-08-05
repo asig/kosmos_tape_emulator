@@ -41,6 +41,6 @@ void loop() {
 
   char buf[17];
   sprintf(buf, "%s %d", mask, millis() / 1000);
-  lcd_showStatus(buf, LEFT); 
+  //lcd_showStatus(buf, LEFT); 
 }
 
