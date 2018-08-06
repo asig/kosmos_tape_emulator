@@ -55,6 +55,31 @@ bool sdcard_getFileName(int i, char* dest) {
   return false;
 }
 
+void sdcard_pickFileName(char* dest) {
+  // Find max number
+  int max = -1;
+  File root = SD.open("/");
+  for (;;) {
+    File entry =  root.openNextFile();
+    if (! entry) {
+      // no more files
+      break;
+    }
+    if (entry.isDirectory()) {
+      continue;
+    }
+    strncpy(dest, entry.name(), NAME_LEN);
+    if (strncmp(dest, "IMG", 3) == 0 &&  strncmp(&dest[6], ".BIN", 4) &&  isdigit(dest[3]) && isdigit(dest[4]) && isdigit(dest[5])) {
+      int nr = (dest[3]-'0')*100 + (dest[4]-'0')*10 + (dest[5]-'0');
+      if (nr > max) {
+        max = nr;
+      }
+    }    
+    entry.close();
+  }
+  sprintf(dest, "IMG%03d.BIN", max+1);  
+}
+
 int sdcard_load(const char *filename, uint8_t *buf) {
   File file = SD.open(filename, FILE_READ);
   int len = file.size();
@@ -69,4 +94,14 @@ int sdcard_load(const char *filename, uint8_t *buf) {
   return len;
 }
 
-
+void sdcard_save(const char *filename, uint8_t *buf, int len) {
+  if (len != 256 && len != 512) {
+    lcd_showTitle(CENTER, "Error!");
+    lcd_showStatus(CENTER, "Invalid length.");
+    delay(2000);
+    return;
+  }
+  File file = SD.open(filename, FILE_WRITE);
+  file.write(buf, len);
+  file.close();
+}

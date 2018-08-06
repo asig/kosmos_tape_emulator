@@ -17,7 +17,7 @@
 #define BTN_R 8
 
 #define DATA_INDICATOR_PIN 13
-#define KOSMOS_DATA_PIN 8
+#define KOSMOS_DATA_PIN 9
 
 uint8_t prgBuf[512]; // buffer used for recording or playing a program
 int prgLen; // length of data in prgBuf.
@@ -155,10 +155,13 @@ void doPlay() {
 
 void doRecord() {
   pinMode(KOSMOS_DATA_PIN, INPUT_PULLUP);
+  lcd_showTitle(LEFT, "Receiving Data:");
 
   // 1) Select file name
-
-  lcd_showTitle(LEFT, "Receiving Data:");
+  char filename[NAME_LEN];
+  sdcard_pickFileName(filename);
+  lcd_showStatus(LEFT, "%s", filename);
+  delay(2000);
 
   // 3) Read lead-in
   lcd_showStatus(LEFT, "Lead-In...");
@@ -183,8 +186,9 @@ void doRecord() {
     prgBuf[prgLen++] = data;
   }
 
+  sdcard_save(filename, prgBuf, prgLen);
   lcd_showStatus(LEFT, "%d bytes read.", prgLen);
-  delay(2000);
+  delay(2000);  
   return;
 
   timeout:
