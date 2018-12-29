@@ -29,9 +29,19 @@ void setup() {
   pinMode(BTN_R_PIN, INPUT_PULLUP);
 
   pinMode(DATA_INDICATOR_PIN, OUTPUT);
-  
+
   lcd_init();
-  lcd_showTitle(CENTER, "CP1 Tape Emul.");
+
+  #ifdef DEBUG
+  Serial.begin(115200);
+  lcd_showTitle(CENTER, "Debug 115200 bps");
+  lcd_showStatus(CENTER, "Connect console.");
+  while(!Serial) {
+    // Wait...
+  }
+  #endif
+  
+  lcd_showTitle(CENTER, "CP2 Emulator");
   
   lcd_showStatus(CENTER, "Reading files...");
   sdcard_init();
@@ -57,8 +67,8 @@ int waitBtn(int btnMask) {
   return wanted;
 }
 
-int waitPin(int pin, int val, int indicator, int timeout) {
-  int start = millis();
+int32_t waitPin(int pin, int val, int indicator, int32_t timeout) {
+  uint32_t start = millis();
   for(;;) {
     int read = digitalRead(pin);
     digitalWrite(indicator, read);
@@ -68,6 +78,38 @@ int waitPin(int pin, int val, int indicator, int timeout) {
     if (millis() - start > timeout) {
       return -1;
     }
+  }
+}
+
+bool checkStop() {
+  if (digitalRead(BTN_L_PIN)) {
+    return false;
+  }
+  digitalWrite(KOSMOS_DATA_PIN, 0);
+  digitalWrite(DATA_INDICATOR_PIN, 0);
+  lcd_showStatus(LEFT, "Stopped.");
+  delay(2000);   
+  return true;
+}
+
+void sendByte(uint8_t b) {
+  int d1, d2;
+  for (int j = 0; j < 8; j++) {
+    if (b & (1<<j)) {
+      // Bit == 1
+      d1 = 35;
+      d2 = 65;
+    } else {
+      // Bit == 0
+      d1 = 65;
+      d2 = 35;
+    }
+    digitalWrite(KOSMOS_DATA_PIN, 0);
+    digitalWrite(DATA_INDICATOR_PIN, 0);
+    delay(d1);
+    digitalWrite(KOSMOS_DATA_PIN, 1);
+    digitalWrite(DATA_INDICATOR_PIN, 1);
+    delay(d2);
   }
 }
 
@@ -106,51 +148,59 @@ void doPlay() {
   lcd_showStatus(LEFT, "");
   digitalWrite(KOSMOS_DATA_PIN, HIGH);
   digitalWrite(DATA_INDICATOR_PIN, HIGH);
-  int now = millis();
-  int delta;
+  uint32_t now = millis();
+  uint32_t delta;
   do {
-    if (!digitalRead(BTN_L_PIN)) goto stop;
+    if (checkStop()) return;
     delta = millis() - now;
-    lcd_showStatus(LEFT, "%d.%02d secs", delta/1000, (delta % 1000)/10);
+    lcd_showStatus(LEFT, "%lu.%02lu secs", delta/1000, (delta % 1000)/10);
   } while (delta < 15000);
 
   // 4) send bytes
   lcd_showTitle(LEFT, "Sending Data:");
   lcd_showStatus(LEFT, "");
-  for (int i = 0; i < prgLen; i++) {
-    if (!digitalRead(BTN_L_PIN)) goto stop;
-    lcd_showStatus(LEFT, "Byte %d of %d.", i+1, prgLen);
-    for (int j = 0; j < 8; j++) {
-      if (prgBuf[i] & (1<<j)) {
-        // Bit 1
-        digitalWrite(KOSMOS_DATA_PIN, 0);
-        digitalWrite(DATA_INDICATOR_PIN, 0);
-        delay(35);
-        digitalWrite(KOSMOS_DATA_PIN, 1);
-        digitalWrite(DATA_INDICATOR_PIN, 1);
-        delay(65);
-      } else {
-        // Bit 0
-        digitalWrite(KOSMOS_DATA_PIN, 0);
-        digitalWrite(DATA_INDICATOR_PIN, 0);
-        delay(65);
-        digitalWrite(KOSMOS_DATA_PIN, 1);
-        digitalWrite(DATA_INDICATOR_PIN, 1);
-        delay(35);      
-      }
-    }
-  }
-  digitalWrite(KOSMOS_DATA_PIN, 0);
-  digitalWrite(DATA_INDICATOR_PIN, 0);
-  lcd_showStatus(LEFT, "Done."); 
-  delay(2000);
-  return;
 
-  stop:
+  int blocks = prgLen/256;
+  int cnt = 1;
+  int block = -1;
+  while(blocks-- > 0) {
+    block++;
+    // Kosmos CP1 serializes byts 0, 255, 254, ..., 1
+    uint8_t pos = 0;
+    do {
+      #ifdef DEBUG
+      Serial.print("Sending byte pos "); 
+      Serial.print(pos, DEC); 
+      Serial.print(" in block "); 
+      Serial.print(block, DEC); 
+      Serial.print(": "); 
+      Serial.println(prgBuf[block*256 + pos], DEC);
+      #endif
+      if (checkStop()) return;
+      lcd_showStatus(LEFT, "Byte %d of %d.", cnt++, prgLen);
+      sendByte(prgBuf[block*256 + pos--]);      
+    } while (pos > 0);    
+  }
+
+  lcd_showStatus(LEFT, "Done."); 
+
   digitalWrite(KOSMOS_DATA_PIN, 0);
   digitalWrite(DATA_INDICATOR_PIN, 0);
-  lcd_showStatus(LEFT, "Stopped.");
-  delay(2000);   
+  delay(1000); // Let CP1 notice that we're not sending anymore
+  pinMode(KOSMOS_DATA_PIN, INPUT); // Stop driving the data line.
+
+  delay(3000); // Give the user some more time to read the message
+  return;
+}
+
+void timeout() {
+  lcd_showStatus(LEFT, "Timeout!");
+  delay(2000);
+}
+
+void error() {
+  lcd_showStatus(LEFT, "Error!");
+  delay(2000);
 }
 
 void doRecord() {
@@ -165,39 +215,46 @@ void doRecord() {
 
   // 3) Read lead-in
   lcd_showStatus(LEFT, "Lead-In...");
-  int t;
-  t = waitPin(KOSMOS_DATA_PIN, 1, DATA_INDICATOR_PIN, 20000); if (t < 0) goto timeout;
-  t = waitPin(KOSMOS_DATA_PIN, 0, DATA_INDICATOR_PIN, 20000); if (t < 0) goto timeout;
+  int32_t t;
+  t = waitPin(KOSMOS_DATA_PIN, 1, DATA_INDICATOR_PIN, 20000); if (t < 0) { timeout(); return; }
+  t = waitPin(KOSMOS_DATA_PIN, 0, DATA_INDICATOR_PIN, 20000); if (t < 0) { timeout(); return; }
   
   // 4) Read bytes
+  int block = -1;
+  int prgLen = 0;
+  int bytesRead = 0;
   for(;;) {
-    uint8_t data = 0;
-    lcd_showStatus(LEFT, "Byte %d", prgLen + 1);
-    for(int i = 0; i < 8; i++) {
-      int t1 = waitPin(KOSMOS_DATA_PIN, 1, DATA_INDICATOR_PIN, 1000); if (t1 < 0) break;
-      int t2 = waitPin(KOSMOS_DATA_PIN, 0, DATA_INDICATOR_PIN, 1000); if (t1 < 0) break;
-      if (t1 < t2) {
-        // Bit 1
-        data |= (1<<i);
-      } else {
-        // Bit 0
+    // Kosmos CP1 serializes byts 0, 255, 254, ..., 1
+    block++;
+    uint8_t pos = 0;
+    do {
+      lcd_showStatus(LEFT, "Byte %d", bytesRead+1);
+      uint8_t data = 0;
+      for(int i = 0; i < 8; i++) {
+        if (checkStop()) return;
+        int32_t t1 = waitPin(KOSMOS_DATA_PIN, 1, DATA_INDICATOR_PIN, 1000); if (t1 < 0) goto done;
+        int32_t t2 = waitPin(KOSMOS_DATA_PIN, 0, DATA_INDICATOR_PIN, 1000); if (t1 < 0) { error(); return; }
+        if (t1 < t2) {
+          // Bit 1
+          data |= (1<<i);
+        } else {
+          // Bit 0
+        }
       }
-    }
-    prgBuf[prgLen++] = data;
+      bytesRead++;
+      prgBuf[block*256 + pos--] = data;
+    } while (pos > 0);
   }
 
-  sdcard_save(filename, prgBuf, prgLen);
+  done:
+  prgLen = bytesRead;
   lcd_showStatus(LEFT, "%d bytes read.", prgLen);
+  sdcard_save(filename, prgBuf, prgLen);
   delay(2000);  
-  return;
-
-  timeout:
-  lcd_showStatus(LEFT, "Timeout!");
-  delay(2000);
 }
 
 void loop() {   //1234567890123456"
-  lcd_showTitle(CENTER, "CP1 Tape Emul.");
+  lcd_showTitle(CENTER, "CP2 Emulator");
   lcd_showStatus(CENTER, "%c: Play  %c: Rec", CHAR_LEFT, CHAR_RIGHT);
   int btn = waitBtn( BTN_L | BTN_R );
   if (btn & BTN_L) {

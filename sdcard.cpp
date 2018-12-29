@@ -69,15 +69,27 @@ void sdcard_pickFileName(char* dest) {
       continue;
     }
     strncpy(dest, entry.name(), NAME_LEN);
-    if (strncmp(dest, "IMG", 3) == 0 &&  strncmp(&dest[6], ".BIN", 4) &&  isdigit(dest[3]) && isdigit(dest[4]) && isdigit(dest[5])) {
+    #ifdef DEBUG
+    Serial.print("sdcard_pickFileName: name = "); Serial.println(dest);
+    #endif
+    if (strncmp(dest, "IMG", 3) == 0 &&  strncmp(&dest[6], ".BIN", 4) == 0 &&  isdigit(dest[3]) && isdigit(dest[4]) && isdigit(dest[5])) {
       int nr = (dest[3]-'0')*100 + (dest[4]-'0')*10 + (dest[5]-'0');
+      #ifdef DEBUG
+      Serial.print("sdcard_pickFileName: nr = "); Serial.println(nr, DEC);
+      #endif
       if (nr > max) {
         max = nr;
+        #ifdef DEBUG
+        Serial.print("sdcard_pickFileName: new max = "); Serial.println(max, DEC);
+        #endif
       }
     }    
     entry.close();
   }
   sprintf(dest, "IMG%03d.BIN", max+1);  
+  #ifdef DEBUG
+  Serial.print("sdcard_pickFileName: result = "); Serial.println(dest);
+  #endif
 }
 
 int sdcard_load(const char *filename, uint8_t *buf) {
