@@ -253,7 +253,7 @@ void doRecord() {
   delay(2000);  
 }
 
-void loop() {   //1234567890123456"
+void loop() {
   lcd_showTitle(CENTER, "CP2 Emulator");
   lcd_showStatus(CENTER, "%c: Play  %c: Rec", CHAR_LEFT, CHAR_RIGHT);
   int btn = waitBtn( BTN_L | BTN_R );
