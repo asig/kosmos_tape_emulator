@@ -1,5 +1,5 @@
 W = 100;
-D = 85;
+D = 85+65;
 H = 50;
 
 FRAGMENTS = 16;
@@ -15,8 +15,9 @@ DISP_SUPPORT_W = DISP_W + 2*DISP_SUPPORT_WALL_W;
 DISP_SUPPORT_D = DISP_D + 2*DISP_SUPPORT_WALL_W;
 DISP_SUPPORT_H = 7;
 
-SD_CARD_D = 5;
-SD_CARD_H = 45;
+SD_CARD_W = 27;
+SD_CARD_D = 45;
+SD_CARD_H = 5;
 
 INNER_W = W - 2*WALL_WIDTH;
 INNER_D = D - 2*WALL_WIDTH;
@@ -47,8 +48,7 @@ module display_hole() {
 }
 
 module sd_hole() {
-    W = 27;    
-    cube([SD_CARD_D,W,SD_CARD_H]);
+    cube([SD_CARD_W, SD_CARD_D ,SD_CARD_H]);
 }
     
 module box() {
@@ -59,21 +59,31 @@ module box() {
     }
 }
 
-module support() {
-    R = 10;
-    H1 = 5;
-    H2 = 20;
+SUPPORT_R = 10;
+SUPPORT_H1 = 5;
+SUPPORT_H2 = 20;
 
+module support_cylinder() {
+    // Cylinder
+    translate([0,0,-(SUPPORT_H1+SUPPORT_H2)]) cylinder(h=SUPPORT_H2, r1 = 0, r2 = SUPPORT_R, $fn=FRAGMENTS);
+    translate([0,0,-SUPPORT_H1]) cylinder(h=SUPPORT_H1, r = SUPPORT_R, $fn=FRAGMENTS);
+}
+
+module support() {
+    translate([0,0,H-FLOOR_HEIGHT]) difference() {
+        support_cylinder();
+        difference() {
+            translate([-2*SUPPORT_R/2,-2*SUPPORT_R/2,-(SUPPORT_H1+SUPPORT_H2)]) cube([2*SUPPORT_R,2*SUPPORT_R,SUPPORT_H1+SUPPORT_H2]);
+            translate([0,0,-(SUPPORT_H1+SUPPORT_H2)]) cube([2*SUPPORT_R/2,2*SUPPORT_R/2,SUPPORT_H1+SUPPORT_H2]);
+        }
+    }            
+}
+
+module support180() {
     translate([0,0,H-FLOOR_HEIGHT]) difference() {
         // Cylinder
-        group() {    
-            translate([0,0,-(H1+H2)]) cylinder(h=H2, r1 = 0, r2 = R, $fn=FRAGMENTS);
-            translate([0,0,-H1]) cylinder(h=H1, r = R, $fn=FRAGMENTS);
-        }
-        difference() {
-            translate([-2*R/2,-2*R/2,-(H1+H2)]) cube([2*R,2*R,H1+H2]);
-            translate([0,0,-(H1+H2)]) cube([2*R/2,2*R/2,H1+H2]);
-        }
+        support_cylinder();
+        translate([-2*SUPPORT_R/2,-2*SUPPORT_R/2,-(SUPPORT_H1+SUPPORT_H2)]) cube([2*SUPPORT_R,SUPPORT_R,SUPPORT_H1+SUPPORT_H2]);
     }            
 }
 
@@ -102,10 +112,12 @@ module ground_plate() {
             translate([0,-(D+WALL_WIDTH)/2,0]) cube([7,WALL_WIDTH+.1,WALL_WIDTH+.1], center=true);
             cube([W, D, WALL_WIDTH],center=true);
         }
-        translate([-W/2+SCREW_HOLE_OFFSET, -D/2+SCREW_HOLE_OFFSET,0]) cylinder(r=.751,h=WALL_WIDTH,center=true, $fn=100);
-        translate([W/2-SCREW_HOLE_OFFSET, -D/2+SCREW_HOLE_OFFSET,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
-        translate([-W/2+SCREW_HOLE_OFFSET, D/2-SCREW_HOLE_OFFSET,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
-        translate([W/2-SCREW_HOLE_OFFSET, D/2-SCREW_HOLE_OFFSET,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
+        //translate([-W/2+SCREW_HOLE_OFFSET, -D/2+SCREW_HOLE_OFFSET,0]) cylinder(r=.751,h=WALL_WIDTH,center=true, $fn=100);
+        //translate([-W/2+SCREW_HOLE_OFFSET,  0-SCREW_HOLE_OFFSET/2,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
+        //translate([-W/2+SCREW_HOLE_OFFSET,  D/2-SCREW_HOLE_OFFSET,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
+        //translate([ W/2-SCREW_HOLE_OFFSET, -D/2+SCREW_HOLE_OFFSET,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
+        //translate([ W/2-SCREW_HOLE_OFFSET,  0-SCREW_HOLE_OFFSET/2,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
+        //translate([ W/2-SCREW_HOLE_OFFSET,  D/2-SCREW_HOLE_OFFSET,0]) cylinder(r=.75,h=WALL_WIDTH,center=true, $fn=100);
     }
 }
     
@@ -113,31 +125,35 @@ module case() {
     difference() {
         group() {
             box();
-            translate([W/2-7,-7, 0]) led();
-            translate([0,-18,0]) display_support();
+            translate([W/2-7,-7-65/2, 0]) led();
+            translate([0,-18-65/2,0]) display_support();
             
             translate([-W/2+WALL_WIDTH, -D/2 + WALL_WIDTH, 0]) support();
-            translate([W/2-WALL_WIDTH, -D/2 + WALL_WIDTH, 0]) rotate([0,0,90]) support();
-            translate([W/2-WALL_WIDTH, D/2 - WALL_WIDTH, 0]) rotate([0,0,180]) support();
-            translate([-W/2+WALL_WIDTH, D/2 - WALL_WIDTH, 0]) rotate([0,0,270]) support();
+            translate([-W/2+WALL_WIDTH,  0 - WALL_WIDTH, 0]) rotate([0,0,270]) support180();
+            translate([-W/2+WALL_WIDTH,  D/2 - WALL_WIDTH, 0]) rotate([0,0,270]) support();
+            translate([ W/2-WALL_WIDTH, -D/2 + WALL_WIDTH, 0]) rotate([0,0,90]) support();
+            translate([ W/2-WALL_WIDTH,  0 - WALL_WIDTH, 0]) rotate([0,0,90]) support180();
+            translate([ W/2-WALL_WIDTH,  D/2 - WALL_WIDTH, 0]) rotate([0,0,180]) support();
 
         };
     
-        translate([W/2-7,-7,0]) led_hole();
-        translate([0,20,0]) button_holes();            
-        translate([0,-18,0]) display_hole();
-        translate([-W/2+1,0,0]) sd_hole();            
+        translate([W/2-7,-7-65/2,0]) led_hole();
+        translate([0,20-65/2,0]) button_holes();            
+        translate([0,-18-65/2,0]) display_hole();
+        translate([INNER_W/2-SD_CARD_W,INNER_D/2-SD_CARD_D+WALL_WIDTH,1]) sd_hole();            
         translate([0,-D/2,H]) cable_hole();
         translate([-INNER_W/2+SCREW_HOLE_OFFSET, -INNER_D/2+SCREW_HOLE_OFFSET,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
-        translate([INNER_W/2-SCREW_HOLE_OFFSET, -INNER_D/2+SCREW_HOLE_OFFSET,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
-        translate([-INNER_W/2+SCREW_HOLE_OFFSET, INNER_D/2-SCREW_HOLE_OFFSET,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
-        translate([INNER_W/2-SCREW_HOLE_OFFSET, INNER_D/2-SCREW_HOLE_OFFSET,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
+        translate([-INNER_W/2+SCREW_HOLE_OFFSET,  0-SCREW_HOLE_OFFSET/2,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
+        translate([-INNER_W/2+SCREW_HOLE_OFFSET,  INNER_D/2-SCREW_HOLE_OFFSET,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
+
+        translate([ INNER_W/2-SCREW_HOLE_OFFSET, -INNER_D/2+SCREW_HOLE_OFFSET,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
+        translate([ INNER_W/2-SCREW_HOLE_OFFSET,  0-SCREW_HOLE_OFFSET/2,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
+        translate([ INNER_W/2-SCREW_HOLE_OFFSET,  INNER_D/2-SCREW_HOLE_OFFSET,H-WALL_WIDTH]) cylinder(r=.5,h=WALL_WIDTH,center=true);
     }
 }
 
 
-case();
-
+//case();
 //translate([W+20,0,0]) 
 ground_plate();
 
