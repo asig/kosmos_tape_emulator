@@ -24,10 +24,10 @@ is more permanent; please let me know if you want to build a real custom
 PCB, I will be very interested in that :-)
 
 ## Build instructions 
-There's a Fritzing doc in the `schematics` directory, and the code contains
-plenty of instructions on what to connect how.
+There are a few Fritzing files in the `schematics` directory, and the code
+contains comments on what to connect how. 
 
 There's also an OpenSCAD file included for a 3D-printable enclosure. It is 
 somewhat ugly, but it works for me :-) Of course, you will have to adapt
-it if you're using different buttons than me.
+it if you're using different buttons.
 
